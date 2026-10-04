@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CarTruth — Vehicle History & Value</title>
+<meta name="theme-color" content="#0b1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CarTruth">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#0b1220;--card:#121a2b;--line:#22304a;--text:#e8eefc;--muted:#9fb0cd;--accent:#4f8cff;--good:#22c55e;--warn:#f59e0b;--bad:#ef4444}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:980px;margin:0 auto;padding:24px}
+h1{font-size:28px;margin:0 0 4px}p.sub{color:var(--muted);margin:0 0 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+input{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#0e1626;color:var(--text)}
+button{background:var(--accent);color:white;border:0;border-radius:10px;padding:12px 18px;font-weight:600;cursor:pointer}
+button.secondary{background:#1c2740}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.metric{background:#0e1626;border:1px solid var(--line);border-radius:12px;padding:14px}
+.metric .k{color:var(--muted);font-size:12px}.metric .v{font-size:22px;font-weight:700;margin-top:6px}
+.badge{display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.low{background:rgba(34,197,94,.15);color:var(--good)}.medium{background:rgba(245,158,11,.15);color:var(--warn)}.high{background:rgba(239,68,68,.15);color:var(--bad)}
+table{width:100%;border-collapse:collapse;margin-top:10px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);font-size:14px}th{color:var(--muted)}
+.empty{color:var(--muted);text-align:center;padding:20px}.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>CarTruth</h1>
+<p class="sub">Track owned-car history, depreciation, and value. Data is stored locally in your browser.</p>
+<div class="card"><h2>Add a vehicle</h2>
+<div class="grid">
+<div><label>Registration / VIN</label><input id="reg" placeholder="MH12AB1234"></div>
+<div><label>Make & model</label><input id="model" placeholder="Hyundai i20"></div>
+<div><label>Year</label><input id="year" type="number" placeholder="2019"></div>
+<div><label>Past owners</label><input id="owners" type="number" min="0" value="0"></div>
+<div><label>Accidents</label><input id="accidents" type="number" min="0" value="0"></div>
+<div><label>Insurance claims</label><input id="claims" type="number" min="0" value="0"></div>
+<div><label>Current kilometres</label><input id="kms" type="number" min="0" placeholder="45000"></div>
+<div><label>Purchase price</label><input id="price" type="number" min="0" placeholder="700000"></div>
+<div><label>Purchase year</label><input id="buyYear" type="number" placeholder="2021"></div>
+</div>
+<div class="row"><button onclick="addVehicle()">Save vehicle</button><button class="secondary" onclick="clearForm()">Clear</button></div></div>
+<div class="card"><h2>Your vehicles</h2><div id="vehicles"></div></div>
+<div class="card hidden" id="detail"></div></div>
+<script>
+let vehicles=JSON.parse(localStorage.getItem('cartruth_vehicles')||'[]');
+function money(n){return '₹'+Number(n||0).toLocaleString('en-IN')}
+function estimate(v){const now=new Date().getFullYear();const age=Math.max(0,now-Number(v.buyYear||v.year));let rate=age<=1?.18:age<=5?.12+((age-2)*.01):.08;let value=Number(v.price)*(1-Math.min(.85,rate*age));const expected=12000*age;const extraKm=Math.max(0,Number(v.kms)-expected);value*=1-Math.min(.15,extraKm/500000);const risk=(Number(v.accidents)*.08)+(Number(v.claims)*.04)+(Number(v.owners)*.02);value*=1-Math.min(.30,risk);return{value:Math.max(0,Math.round(value)),risk}}
+function riskLabel(r){return r<.08?['Low','low']:r<.18?['Medium','medium']:['High','high']}
+function save(){localStorage.setItem('cartruth_vehicles',JSON.stringify(vehicles));render()}
+function addVehicle(){const v={id:Date.now(),reg:reg.value,model:model.value,year:year.value,owners:owners.value,accidents:accidents.value,claims:claims.value,kms:kms.value,price:price.value,buyYear:buyYear.value};if(!v.reg||!v.model||!v.price){alert('Please enter registration, model, and purchase price.');return}vehicles.unshift(v);save();clearForm()}
+function clearForm(){['reg','model','year','owners','accidents','claims','kms','price','buyYear'].forEach(i=>document.getElementById(i).value='')}
+function removeVehicle(id){vehicles=vehicles.filter(v=>v.id!==id);save()}
+function showDetail(id){const v=vehicles.find(x=>x.id===id);const e=estimate(v);const [label,cls]=riskLabel(e.risk);const dep=Number(v.price)-e.value;const pct=v.price?Math.round(e.value/v.price*100):0;document.getElementById('detail').classList.remove('hidden');document.getElementById('detail').innerHTML=`<h2>${v.model} <span class="badge ${cls}">${label} risk</span></h2><p class="sub">${v.reg} • ${v.year||'—'}</p><div class="grid"><div class="metric"><div class="k">Purchase price</div><div class="v">${money(v.price)}</div></div><div class="metric"><div class="k">Estimated current value</div><div class="v">${money(e.value)}</div></div><div class="metric"><div class="k">Depreciation</div><div class="v">${money(dep)}</div></div><div class="metric"><div class="k">Value retained</div><div class="v">${pct}%</div></div><div class="metric"><div class="k">Past owners</div><div class="v">${v.owners}</div></div><div class="metric"><div class="k">Accidents / claims</div><div class="v">${v.accidents} / ${v.claims}</div></div><div class="metric"><div class="k">Kilometres</div><div class="v">${Number(v.kms||0).toLocaleString('en-IN')}</div></div></div><p class="sub" style="margin-top:14px">Estimate uses age, mileage above an assumed 12,000 km/year, ownership count, accidents, and claims.</p>`;document.getElementById('detail').scrollIntoView({behavior:'smooth'})}
+function render(){const box=document.getElementById('vehicles');if(!vehicles.length){box.innerHTML='<div class="empty">No vehicles added yet.</div>';return}box.innerHTML='<table><tr><th>Vehicle</th><th>Registration</th><th>Current value</th><th>Risk</th><th></th></tr>'+vehicles.map(v=>{const e=estimate(v);const [l,c]=riskLabel(e.risk);return `<tr><td>${v.model}<br><small style="color:var(--muted)">${v.year||''}</small></td><td>${v.reg}</td><td>${money(e.value)}</td><td><span class="badge ${c}">${l}</span></td><td><button onclick="showDetail(${v.id})">View</button> <button class="secondary" onclick="removeVehicle(${v.id})">Delete</button></td></tr>`}).join('')+'</table>'}
+render();
+</script>
+</body>
+</html>
